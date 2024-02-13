@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 
 DEFAULT_PATH = Path("C:/ProgramData/BLE Battery Recorder/battery.csv")
+FALLBACK_PATH = Path("./battery.csv")
 
 
 def main():
@@ -23,7 +24,11 @@ def main():
 
     args = parser.parse_args()
 
-    df = pd.read_csv(args.file, index_col=0, parse_dates=True)
+    path: Path = args.file
+    if not path.is_file():
+        path = FALLBACK_PATH
+
+    df = pd.read_csv(path, index_col=0, parse_dates=True)
 
     # Split this into separate data sets per device, then graph them together.
     # There's almost certainly a better way to do this, but I have no idea what
@@ -31,7 +36,7 @@ def main():
     ax = None
     for name, d in df.groupby("Name"):
         d = d.rename(columns={"Battery": name})
-        ax = d.plot(ax=ax, ylim=(0, 100), ylabel="Battery %")
+        ax = d.plot(ax=ax, ylim=(0, 105), ylabel="Battery %")
 
     plt.show()
 

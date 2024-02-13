@@ -9,6 +9,7 @@ public class WindowsBackgroundService(IConfiguration config, ILogger<WindowsBack
 		Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
 		"BLE Battery Recorder",
 		"battery.csv");
+	private readonly string FallbackLogFilePath = "battery.csv";
 
 	private readonly IConfiguration _config = config;
 	private readonly ILogger<WindowsBackgroundService> _logger = logger;
@@ -26,12 +27,9 @@ public class WindowsBackgroundService(IConfiguration config, ILogger<WindowsBack
 
 	private async Task WriteSample()
 	{
-		var logfile = GetLogFilePath();
 		var timestamp = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
-		Directory.CreateDirectory(Path.GetDirectoryName(logfile)!);
-
-		using var csv = File.AppendText(logfile);
+		using var csv = OpenLogFile();
 		if (csv.BaseStream.Position == 0)
 		{
 			csv.WriteLine("Time,Name,Battery");
@@ -39,15 +37,38 @@ public class WindowsBackgroundService(IConfiguration config, ILogger<WindowsBack
 
 		await foreach (var device in DeviceBatteries.FindAllAsync())
 		{
-			foreach (var (value, index) in device.Levels.WithIndex())
+			foreach (var value in device.Levels)
 			{
-				var name = device.Levels.Count() > 1 ?
-					GetName(device.Name, value.Description, index) : device.Name;
+				var name = GetName(device.Name, value.Description);
 
 				_logger.LogDebug("{Name} {Level}", name, value.Value);
 				csv.WriteLine($"{timestamp},{Escape(name)},{value.Value}");
 			}
 		}
+	}
+
+	private StreamWriter OpenLogFile()
+	{
+		try
+		{
+			var logfile = GetLogFilePath();
+			return OpenLogFile(logfile);
+		}
+		catch (UnauthorizedAccessException)
+		{
+			return OpenLogFile(FallbackLogFilePath);
+		}
+	}
+
+	private static StreamWriter OpenLogFile(string logfile)
+	{
+		var directory = Path.GetDirectoryName(logfile);
+		if (!string.IsNullOrEmpty(directory))
+		{
+			Directory.CreateDirectory(directory);
+		}
+
+		return File.AppendText(logfile);
 	}
 
 	private TimeSpan GetPeriod()
@@ -71,8 +92,13 @@ public class WindowsBackgroundService(IConfiguration config, ILogger<WindowsBack
 		return s;
 	}
 
-	static string GetName(string name, string description, int index)
+	static string GetName(string name, string description)
 	{
-		return $"{name} ({(string.IsNullOrEmpty(description) ? index : description)})";
+		if (string.IsNullOrEmpty(description))
+		{
+			return name;
+		}
+
+		return $"{name} ({description})";
 	}
 }

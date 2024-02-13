@@ -25,7 +25,7 @@ cd BleBatteryRecorder/BleBatteryRecorder
 
 To remove the service, run `Uninstall.ps1`.
 
-Alternatively, this program can be run as a standard console application:
+Alternatively, this program can be run as a standard console application. The log file is then written to the current directory instead of to `C:\ProgramData`.
 
 ```bash
 cd BleBatteryRecorder/BleBatteryRecorder
